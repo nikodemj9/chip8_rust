@@ -80,7 +80,6 @@ impl Emu {
         let op = self.fetch();
         // Decode and execute
         self.execute(op);
-        self.pc += 2;
     }
 
     pub fn tick_timers(&mut self) {
@@ -153,7 +152,7 @@ impl Emu {
             (0xF, _, 3, 3) => self.op_FX33(op),
             (0xF, _, 5, 5) => self.op_FX55(op),
             (0xF, _, 6, 5) => self.op_FX65(op),
-            (_, _, _, _) => unimplemented!("Unimplemented opcode: {}", op),
+            (_, _, _, _) => unimplemented!("Unimplemented opcode: {:X}", op),
         }
     }
 
@@ -191,19 +190,19 @@ impl Emu {
     }
 
     fn op_1NNN(&mut self, op: u16) {
-        let address = op & 0x0FFF;
+        let address = op & 0xFFF;
         self.pc = address;
     }
 
     fn op_2NNN(&mut self, op: u16) {
+        let address = op & 0xFFF;
         self.push(self.pc);
-        let address = op & 0x0FFF;
         self.pc = address;
     }
 
     fn op_3XNN(&mut self, op: u16) {
         let reg = ((op & 0x0F00) >> 8) as usize;
-        let nn = (op & 0x00FF) as u8;
+        let nn = (op & 0xFF) as u8;
         if self.v_reg[reg] == nn {
             self.pc += 2;
         }
@@ -211,7 +210,7 @@ impl Emu {
 
     fn op_4XNN(&mut self, op: u16) {
         let reg = ((op & 0x0F00) >> 8) as usize;
-        let nn = (op & 0x00FF) as u8;
+        let nn = (op & 0xFF) as u8;
 
         if self.v_reg[reg] != nn {
             self.pc += 2;
@@ -229,7 +228,7 @@ impl Emu {
 
     fn op_6XNN(&mut self, op: u16) {
         let regx = ((op & 0x0F00) >> 8) as usize;
-        let nn = (op & 0x00FF) as u8;
+        let nn = (op & 0xFF) as u8;
         self.v_reg[regx] = nn;
     }
 
@@ -237,7 +236,7 @@ impl Emu {
         let regx = ((op & 0x0F00) >> 8) as usize;
         let nn = (op & 0x00FF) as u8;
 
-        self.v_reg[regx] += nn;
+        self.v_reg[regx] = self.v_reg[regx].wrapping_add(nn);
     }
 
     fn op_8XY0(&mut self, op: u16) {
@@ -339,7 +338,7 @@ impl Emu {
     fn op_DXYN(&mut self, op: u16) {
         let x = self.v_reg[((op & 0x0F00) >> 8) as usize] as u16;
         let y = self.v_reg[((op & 0x00F0) >> 4) as usize] as u16;
-        let rows = (op & 0x00F0) >> 4;
+        let rows = op & 0x00F;
         let mut flipped = false;
 
         for row in 0..rows {
@@ -353,7 +352,7 @@ impl Emu {
 
                     let idx = x + SCREEN_WIDTH * y;
                     flipped |= self.screen[idx];
-                    self.screen[idx] = true; // TODO Check
+                    self.screen[idx] ^= true;
                 }
             }
         }
@@ -388,10 +387,12 @@ impl Emu {
 
     fn op_FX0A(&mut self, op: u16) {
         // Wait for key
+        let regx = ((op & 0x0F00) >> 8) as usize;
         let mut pressed = false;
 
         for i in 0..self.keys.len() {
             if self.keys[i] {
+                self.v_reg[regx] = i as u8;
                 pressed = true;
                 break;
             }
@@ -432,8 +433,8 @@ impl Emu {
         let ones = (vx % 10.0) as u8;
 
         self.ram[self.i_reg as usize] = hundreds;
-        self.ram[self.i_reg as usize + 1] = tens;
-        self.ram[self.i_reg as usize + 2] = ones;
+        self.ram[(self.i_reg + 1) as usize] = tens;
+        self.ram[(self.i_reg + 2) as usize] = ones;
     }
 
     fn op_FX55(&mut self, op: u16) {
