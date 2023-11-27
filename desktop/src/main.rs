@@ -114,7 +114,7 @@ fn main() {
         for _ in 0..TICKS_PER_FRAME {
             emu.tick();
         }
-
+        emu.tick_timers();
         draw_screen(&emu, &mut canvas);
     }
 }
